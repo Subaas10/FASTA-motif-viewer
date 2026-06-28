@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FASTA Motif Viewer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Courier New', Courier, monospace;
+  background: #f4f6f9;
+  color: #111;
+  min-height: 100vh;
+}
+
+/* ── Top bar ── */
+.topbar {
+  background: #1a2540; color: #c8d8f8;
+  padding: 10px 20px; display: flex; align-items: center;
+  gap: 16px; flex-wrap: wrap; font-family: Arial, sans-serif;
+}
+.topbar h1 { font-size: 14px; font-weight: bold; color: #fff; white-space: nowrap; }
+.topbar .sep { width: 1px; height: 28px; background: #3a4a70; flex-shrink: 0; }
+
+/* ── Panels ── */
+.panels {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  padding: 14px 18px; background: #fff;
+  border-bottom: 2px solid #dde3f0;
+}
+.panel {
+  background: #f0f4fc; border: 1px solid #ccd6ee;
+  border-radius: 6px; padding: 10px 14px;
+  display: flex; flex-direction: column; gap: 8px; min-width: 200px;
+}
+.panel h3 {
+  font-family: Arial, sans-serif; font-size: 11px; color: #446;
+  text-transform: uppercase; letter-spacing: .07em; font-weight: bold;
+}
+.upload-zone {
+  border: 2px dashed #99aad0; border-radius: 6px;
+  padding: 10px 16px; text-align: center; cursor: pointer;
+  font-family: Arial, sans-serif; font-size: 12px; color: #557;
+  background: #f8faff; transition: background .15s, border-color .15s;
+}
+.upload-zone:hover, .upload-zone.drag { background: #e8f0ff; border-color: #5580d0; }
+.upload-zone input { display: none; }
+.motif-input {
+  font-family: 'Courier New', monospace; font-size: 14px;
+  border: 1.5px solid #aabbd8; border-radius: 4px;
+  padding: 6px 10px; width: 100%; background: #fff;
+  letter-spacing: .06em;
+}
+.motif-input:focus { outline: none; border-color: #4470c8; box-shadow: 0 0 0 2px #d0ddf8; }
+.lbl { font-family: Arial, sans-serif; font-size: 11.5px; color: #445; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.lbl input[type=number], .lbl input[type=text], .lbl select {
+  font-family: 'Courier New', monospace; font-size: 12px;
+  border: 1px solid #aabbd8; border-radius: 4px; padding: 3px 7px; background: #fff;
+}
+.lbl input[type=number] { width: 58px; }
+.lbl input[type=text]   { width: 110px; }
+.lbl select             { width: 155px; }
+.btn { font-family: Arial, sans-serif; font-size: 12px; padding: 6px 14px; border-radius: 4px; border: 1px solid; cursor: pointer; white-space: nowrap; }
+.btn-blue  { background: #ddeaff; border-color: #6090d8; color: #1a3580; }
+.btn-blue:hover  { background: #c8daff; }
+.btn-green { background: #ddf0e4; border-color: #5a9868; color: #1a4a28; }
+.btn-green:hover { background: #c8e8d4; }
+.btn-red   { background: #fdeaea; border-color: #d07070; color: #7a1818; }
+.btn-red:hover   { background: #f8d8d8; }
+
+/* Motif preview */
+#motifPreview { font-family: 'Courier New', monospace; font-size: 14px; min-height: 22px; letter-spacing: .05em; padding: 2px 0; }
+
+/* Stats bar */
+.statsbar {
+  padding: 6px 18px; font-family: Arial, sans-serif; font-size: 11.5px; color: #556;
+  background: #f8faff; border-bottom: 1px solid #dde3f0;
+  display: flex; gap: 18px; flex-wrap: wrap; align-items: center;
+}
+.statsbar b { color: #334; }
+
+/* ── Figure area ── */
+.figure-area { padding: 14px 22px 30px; }
+.empty { text-align: center; padding: 60px 20px; font-family: Arial, sans-serif; color: #889; font-size: 14px; }
+.empty b { display: block; font-size: 18px; margin-bottom: 8px; color: #667; }
+
+/* ── Strain block ── */
+.strain-block { margin-bottom: 16px; page-break-inside: avoid; }
+.strain-title {
+  font-family: Arial, sans-serif; font-size: 10.5px; color: #556;
+  font-style: italic; margin-bottom: 3px;
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+}
+.strand-badge { font-style: normal; font-size: 9.5px; padding: 1px 5px; border-radius: 3px; background: #e8ecf8; color: #446; border: 1px solid #c8d0e8; }
+.file-badge   { font-style: normal; font-size: 9px; color: #99a; }
+
+/* ── Publication row ── ONE LINE per hit-group ── */
+.pub-row {
+  display: flex; align-items: baseline;
+  font-size: 13.5px; line-height: 1.65;
+  font-family: 'Courier New', monospace;
+  white-space: nowrap; margin-bottom: 2px;
+}
+.mm-label {
+  font-family: Arial, sans-serif; font-size: 9.5px; color: #aaa;
+  width: 42px; flex-shrink: 0; text-align: right; padding-right: 8px; align-self: center;
+}
+.mm-label.exact { color: #1a8030; font-weight: bold; }
+.mm-label.var   { color: #c06000; }
+
+/* inter-hit compressed gap  e.g. [18nt] */
+.inter-gap { color: #333; font-size: 13.5px; }
+
+/* gap to ATG */
+.gap-ann { color: #333; }
+.gap-display {
+  font-family: 'Courier New', monospace; font-size: 13.5px; color: #333;
+  display: inline; cursor: pointer; border-bottom: 1px dotted #aaa;
+}
+.gap-display:hover { color: #1a3580; border-bottom-color: #4470c8; }
+.gap-val {
+  font-family: 'Courier New', monospace; font-size: 13.5px; color: #1a3580;
+  background: #eef4ff; border: none; border-bottom: 2px solid #4470c8;
+  width: 52px; text-align: center; padding: 0 2px; cursor: text;
+  display: none;
+}
+.gap-val:focus { outline: none; }
+.z-atg { font-weight: bold; color: #111; }
+
+/* gene area */
+.gene-area { display: inline-flex; flex-direction: column; align-items: flex-start; margin-left: 9px; vertical-align: middle; }
+.gene-input {
+  font-family: Arial, sans-serif; font-size: 10px; font-style: italic; color: #c00;
+  background: transparent; border: none; border-bottom: 1px dashed #f88;
+  width: 90px; padding: 0 1px; cursor: text;
+}
+.gene-input:placeholder-shown { border-bottom-color: transparent; }
+.gene-input:focus { outline: none; border-bottom-color: #c00; background: #fff8f8; }
+.gene-arrow { font-size: 12px; color: #c00; line-height: 1; font-family: Arial, sans-serif; }
+
+/* ── WebLogo nucleotide colours ── */
+.nA { color: #009900; font-weight: bold; }
+.nT { color: #cc0000; font-weight: bold; }
+.nG { color: #cc7700; font-weight: bold; }
+.nC { color: #0000cc; font-weight: bold; }
+.mm-pos { text-decoration: underline; }
+
+/* divider */
+hr.sdiv { border: none; border-top: 1px solid #e4e8f4; margin: 8px 0 14px 0; }
+
+/* Pagebar */
+.pagebar {
+  display: flex; gap: 10px; align-items: center; padding: 10px 22px;
+  font-family: Arial, sans-serif; font-size: 12px; color: #778;
+  background: #f8faff; border-top: 1px solid #dde3f0;
+}
+.pagebar button { background: #eef2fc; border: 1px solid #bbc8e8; border-radius: 3px; padding: 3px 12px; cursor: pointer; font-size: 12px; }
+.pagebar button:disabled { opacity: .35; cursor: default; }
+
+/* ── Print ── */
+@media print {
+  .topbar, .panels, .statsbar, .pagebar { display: none !important; }
+  body { background: #fff; }
+  .figure-area { padding: 4px 0; }
+  .strain-title { font-size: 9.5px; }
+  .pub-row { font-size: 11.5px; line-height: 1.55; }
+  .gap-val, .gene-input { border: none !important; background: transparent !important; }
+  .gap-display { border-bottom: none !important; }
+  .strain-block { margin-bottom: 8px; }
+  /* Hide MM label, file badge, and strand badge in print */
+  .mm-label { display: none !important; }
+  .file-badge { display: none !important; }
+  .strand-badge { display: none !important; }
+  hr.sdiv { margin: 4px 0 8px 0; }
+}
+
+/* Remove browser-generated date/time header and URL footer */
+@page {
+  margin: 14mm 12mm 14mm 12mm;
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>🧬 FASTA Motif Viewer</h1>
+  <div class="sep"></div>
+  <span style="font-size:12px;color:#8ab">Upload plain FASTA · type motif · all hits shown on one line with compressed [Xnt] gap · auto ATG distance · Print/PDF</span>
+</div>
+
+<!-- ═══ Controls ═══ -->
+<div class="panels">
+
+  <div class="panel" style="flex:1.2;min-width:250px;">
+    <h3>📂 Upload FASTA</h3>
+    <div class="upload-zone" id="dropZone"
+         onclick="document.getElementById('fileIn').click()"
+         ondragover="event.preventDefault();this.classList.add('drag')"
+         ondragleave="this.classList.remove('drag')"
+         ondrop="handleDrop(event)">
+      <input type="file" id="fileIn" accept=".fasta,.fa,.txt,.fna" multiple onchange="loadFiles(this.files)">
+      <div>Click or drag &amp; drop FASTA files</div>
+      <div style="margin-top:3px;color:#99a;font-size:10.5px;">Multiple files supported · plain FASTA format</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="btn btn-red" onclick="clearAll()">✕ Clear</button>
+      <span id="fileStatus" style="font-family:Arial,sans-serif;font-size:11px;color:#446;"></span>
+    </div>
+  </div>
+
+  <div class="panel" style="flex:1.4;min-width:290px;">
+    <h3>🔍 Motif Identifier</h3>
+    <input class="motif-input" id="motifInput" type="text"
+           placeholder="e.g. TATAAT"
+           oninput="scheduleRender()" onpaste="setTimeout(scheduleRender,10)">
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+      <label class="lbl">Max mismatches:
+        <input type="number" id="mmAllow" value="0" min="0" max="15" oninput="scheduleRender()">
+      </label>
+      <label class="lbl" style="gap:5px;">
+        <input type="checkbox" id="caseSens" onchange="scheduleRender()"> Case-sensitive
+      </label>
+    </div>
+    <div>
+      <div style="font-family:Arial,sans-serif;font-size:10.5px;color:#778;margin-bottom:2px;">Searching for:</div>
+      <div id="motifPreview">&nbsp;</div>
+      <div id="motifMeta" style="font-family:Arial,sans-serif;font-size:10px;color:#889;margin-top:2px;"></div>
+    </div>
+  </div>
+
+  <div class="panel" style="min-width:215px;">
+    <h3>⚙️ Display</h3>
+    <label class="lbl">Upstream flank bp:
+      <input type="number" id="upLen" value="10" min="0" max="300" oninput="scheduleRender()">
+    </label>
+    <label class="lbl">Inter-hit flank bp:
+      <input type="number" id="midLen" value="5" min="0" max="100" oninput="scheduleRender()">
+    </label>
+    <label class="lbl">Downstream flank bp:
+      <input type="number" id="dnLen" value="10" min="0" max="300" oninput="scheduleRender()">
+    </label>
+    <label class="lbl">Gene label (default):
+      <input type="text" id="geneDefault" value="[gene]" oninput="scheduleRender()" onchange="scheduleRender()">
+    </label>
+    <label class="lbl" style="gap:5px;">
+      <input type="checkbox" id="showFull" onchange="scheduleRender()"> Show full sequence
+    </label>
+    <label class="lbl" style="gap:5px;">
+      <input type="checkbox" id="showAtg" checked onchange="scheduleRender()"> Show ATG start codon marker
+    </label>
+  </div>
+
+  <div class="panel" style="min-width:195px;">
+    <h3>🔎 Filter &amp; Export</h3>
+    <label class="lbl">Filter organism:
+      <input type="text" id="orgFilter" placeholder="e.g. O157" oninput="scheduleRender()">
+    </label>
+    <label class="lbl">Show:
+      <select id="showFilter" onchange="scheduleRender()">
+        <option value="all">All strains</option>
+        <option value="hits">Strains with motif hits</option>
+        <option value="nohits">Strains without hits</option>
+        <option value="exact">Exact (MM=0) only</option>
+      </select>
+    </label>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:4px;">
+      <button class="btn btn-green" onclick="window.print()">🖨 Print/PDF</button>
+      <button class="btn btn-blue"  onclick="exportTSV()">⬇ TSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="statsbar" id="statsbar" style="display:none;">
+  <span>Sequences: <b id="sSeqs">0</b></span>
+  <span>Strains: <b id="sStrains">0</b></span>
+  <span>Visible: <b id="sVis">0</b></span>
+  <span>Total hits: <b id="sHits" style="color:#1a6a30;font-weight:bold;">0</b></span>
+  <span>Exact (MM=0): <b id="sExact" style="color:#1a8030;">0</b></span>
+  <span>Variant: <b id="sVar" style="color:#c06000;">0</b></span>
+</div>
+
+<div class="figure-area" id="figArea">
+  <div class="empty"><b>No FASTA loaded</b>Upload one or more FASTA files above to begin.</div>
+</div>
+
+<div class="pagebar" id="pagebar" style="display:none;">
+  <button id="pbPrev" onclick="changePage(-1)">◀ Prev</button>
+  <span id="pbInfo"></span>
+  <button id="pbNext" onclick="changePage(1)">Next ▶</button>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════
+let allEntries  = [];
+let strainMap   = [];
+let visGroups   = [];
+let overrides   = {};
+let page        = 0;
+const PER_PAGE  = 20;
+let renderTimer = null;
+
+// ════════════════════════════════════════════════════════
+// FASTA PARSING
+// ════════════════════════════════════════════════════════
+function parseFasta(text, filename) {
+  const out = [];
+  text = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const blocks = text.trim().split(/\n(?=>)/);
+  for (const block of blocks) {
+    const lines = block.trim().split('\n');
+    if (!lines.length || !lines[0].startsWith('>')) continue;
+    const header = lines[0].slice(1).trim();
+    const rawSeq = lines.slice(1).join('').replace(/\s+/g,'');
+
+    let organism = (header.split('|')[0]||header)
+                   .replace(/_genomic$/i,'').replace(/_/g,' ').trim();
+    let strand = '+';
+    const sm = header.match(/strand_([+-])/); if (sm) strand = sm[1];
+    const mmM    = header.match(/mismatches:(\d+)/);
+    const startM = header.match(/start:(\d+)/);
+    const endM   = header.match(/end:(\d+)/);
+    const mismatches = mmM    ? parseInt(mmM[1])    : null;
+    const hstart     = startM ? parseInt(startM[1]) : null;
+    const hend       = endM   ? parseInt(endM[1])   : null;
+
+    // Plain sequence — strip any stray bracket characters
+    const seq = rawSeq.replace(/[\[\]]/g,'');
+
+    // The upstream sequence is purely UPSTREAM of the target gene ATG.
+    // ATG is NOT in this sequence — it starts immediately after.
+    // We store the full sequence as-is and always show ATG as a fixed label at the end.
+    const seqBody   = seq;          // full sequence, no trimming
+    const hasAtg    = true;         // ATG always follows this region
+    const atgAbsPos = seq.length;   // ATG begins right after last nt of this sequence
+
+    const strainKey = `${organism}|||${strand}|||${filename}`;
+    out.push({ id:`${filename}::${header}`, filename, header, organism, strand,
+               strainKey, seq: seqBody, hasAtg, atgAbsPos,
+               mismatches, hstart, hend });
+  }
+  return out;
+}
+
+function buildStrainMap(entries) {
+  const map = new Map();
+  for (const e of entries) {
+    if (!map.has(e.strainKey))
+      map.set(e.strainKey, { strainKey:e.strainKey, organism:e.organism,
+                              strand:e.strand, filename:e.filename, entries:[] });
+    map.get(e.strainKey).entries.push(e);
+  }
+  for (const g of map.values())
+    g.entries.sort((a,b) => (a.mismatches??99)-(b.mismatches??99));
+  return [...map.values()];
+}
+
+// ════════════════════════════════════════════════════════
+// FILE LOADING
+// ════════════════════════════════════════════════════════
+function loadFiles(files) {
+  if (!files||!files.length) return;
+  let pending = files.length;
+  for (const f of files) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      allEntries = allEntries.concat(parseFasta(ev.target.result, f.name));
+      if (--pending===0) {
+        strainMap = buildStrainMap(allEntries);
+        document.getElementById('fileStatus').textContent =
+          `${allEntries.length} sequences · ${strainMap.length} strains`;
+        scheduleRender();
+      }
+    };
+    reader.readAsText(f);
+  }
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag');
+  loadFiles(e.dataTransfer.files);
+}
+function clearAll() {
+  allEntries=[]; strainMap=[]; visGroups=[]; overrides={}; page=0;
+  document.getElementById('fileStatus').textContent='';
+  document.getElementById('fileIn').value='';
+  render();
+}
+
+// ════════════════════════════════════════════════════════
+// MOTIF SEARCH  – all hits, sorted by position
+// ════════════════════════════════════════════════════════
+function findAllHits(seq, motif, maxMM) {
+  if (!motif||!seq||motif.length>seq.length) return [];
+  const caseSens = document.getElementById('caseSens').checked;
+  const s = caseSens ? seq : seq.toUpperCase();
+  const m = caseSens ? motif : motif.toUpperCase();
+  const hits=[];
+  for (let i=0; i<=s.length-m.length; i++) {
+    let mm=0;
+    for (let j=0; j<m.length; j++) { if (s[i+j]!==m[j]&&++mm>maxMM) break; }
+    if (mm<=maxMM) hits.push({pos:i, len:m.length, mm, matched:seq.slice(i,i+m.length)});
+  }
+  return hits;
+}
+
+// ════════════════════════════════════════════════════════
+// HTML HELPERS
+// ════════════════════════════════════════════════════════
+const NT={A:'nA',T:'nT',G:'nG',C:'nC',a:'nA',t:'nT',g:'nG',c:'nC'};
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function ntSpan(ch,extra){
+  const cls=[NT[ch]||'',extra].filter(Boolean).join(' ');
+  return cls?`<span class="${cls}">${esc(ch)}</span>`:esc(ch);
+}
+
+// Colour a motif-matched string vs consensus
+function colourMotif(str, consensus) {
+  let html='';
+  for (let i=0;i<str.length;i++) {
+    const isMM = consensus&&i<consensus.length&&str[i].toUpperCase()!==consensus[i].toUpperCase();
+    html += ntSpan(str[i], isMM?'mm-pos':'');
+  }
+  return html;
+}
+
+// ════════════════════════════════════════════════════════
+// BUILD ONE ROW
+// Multiple hits on the SAME sequence → one line with [Xnt] compressed gaps
+// Each FASTA entry in the strain = one row (or merged if same-entry multi-hit)
+// ════════════════════════════════════════════════════════
+function buildRow(e, hits, motif, upLen, midLen, dnLen, showFull, rowKey, geneDef, arrow, isFirst) {
+  const ov    = overrides[rowKey]||{};
+  const gene  = ov.gene!==undefined ? ov.gene : geneDef;
+  // Gap = nucleotides between end of shown downstream flank and the ATG.
+  // atgAbsPos = e.seq.length (ATG always starts right after the 550bp sequence).
+  // gap = seq.length - (lastHitEnd + dnLen)  →  always correct, never negative.
+  let autoGap = '0';
+  if (hits.length > 0) {
+    const lastHit    = hits[hits.length - 1];
+    const lastHitEnd = lastHit.pos + lastHit.len;
+    const shownEnd   = showFull ? e.seq.length : Math.min(lastHitEnd + dnLen, e.seq.length);
+    autoGap = String(Math.max(0, e.seq.length - shownEnd));
+  } else {
+    // No hits — gap is full sequence length minus dnLen shown
+    autoGap = String(Math.max(0, e.seq.length - dnLen));
+  }
+  const gapV = ov.gap !== undefined ? ov.gap : autoGap;
+
+  // ── Determine overall MM label for this row ──
+  const minMM = hits.length ? Math.min(...hits.map(h=>h.mm)) :
+                (e.mismatches!==null ? e.mismatches : null);
+  const mmLabel = minMM!==null ? `MM=${minMM}` : '';
+  const mmCls   = minMM===0 ? 'exact' : minMM!==null ? 'var' : '';
+
+  let seqHtml = '';
+
+  if (showFull || !motif || !hits.length) {
+    // ── Full sequence, just colour hits ─────────────────
+    if (!motif || !hits.length) {
+      seqHtml = esc(e.seq);
+    } else {
+      // Build position map
+      const pm = new Array(e.seq.length).fill(null);
+      hits.forEach(h => { for(let p=h.pos;p<h.pos+h.len;p++) pm[p]=h; });
+      let html='';
+      for (let i=0;i<e.seq.length;i++) {
+        const h=pm[i];
+        if (h) { const isMM=motif&&e.seq[i].toUpperCase()!==motif[i-h.pos+0].toUpperCase(); html+=ntSpan(e.seq[i],isMM?'mm-pos':''); }
+        else html+=esc(e.seq[i]);
+      }
+      seqHtml = html;
+    }
+
+  } else if (hits.length === 1) {
+    // ── Single hit ──────────────────────────────────────
+    const h      = hits[0];
+    const lo     = Math.max(0, h.pos - upLen);
+    const prefix = lo;                    // nt before upstream flank
+    const up     = e.seq.slice(lo, h.pos);
+    const hit    = e.seq.slice(h.pos, h.pos+h.len);
+    const dn     = e.seq.slice(h.pos+h.len, h.pos+h.len+dnLen);
+    // Show prefix gap if first hit is far from start
+    const prefixHtml = prefix > 0
+      ? `<span class="inter-gap">[${prefix}nt]</span>` : '';
+    seqHtml = prefixHtml + esc(up) + colourMotif(hit, motif) + esc(dn);
+
+  } else {
+    // ── Multiple hits: compress ALL gaps including prefix ─
+    let html = '';
+
+    hits.forEach((h, hi) => {
+      if (hi === 0) {
+        // Prefix: nt from seq start to upstream flank start
+        const lo     = Math.max(0, h.pos - upLen);
+        const prefix = lo;   // compressed nt before the upstream window
+        if (prefix > 0) {
+          html += `<span class="inter-gap">[${prefix}nt]</span>`;
+        }
+        html += esc(e.seq.slice(lo, h.pos));   // upstream flank
+      } else {
+        // Between hits: compress middle, show midLen context before next hit
+        const prevEnd  = hits[hi-1].pos + hits[hi-1].len;
+        const midStart = Math.max(prevEnd, h.pos - midLen);
+        const compressed = midStart - prevEnd;
+        if (compressed > 0) {
+          html += `<span class="inter-gap">[${compressed}nt]</span>`;
+        }
+        html += esc(e.seq.slice(midStart, h.pos));
+      }
+      // Coloured motif hit
+      html += colourMotif(e.seq.slice(h.pos, h.pos+h.len), motif);
+    });
+
+    // Downstream after last hit
+    const lastH   = hits[hits.length-1];
+    const dnStart = lastH.pos + lastH.len;
+    html += esc(e.seq.slice(dnStart, dnStart+dnLen));
+    seqHtml = html;
+  }
+
+  // ATG — auto-calculated gap shown as plain text; click to override
+  const showAtg = document.getElementById('showAtg').checked;
+  const atgHtml = (e.hasAtg && showAtg)
+    ? (() => {
+        // Use a simple numeric ID to avoid special chars in DOM ids
+        const rid = 'g' + (Math.random()*1e9|0);
+        const qk  = JSON.stringify(rowKey);
+        return ` <span class="gap-ann">...[<span
+            class="gap-display"
+            id="${rid}d"
+            title="Auto-calculated. Click to override."
+            onclick="activateGapEdit('${rid}',${qk})"
+          >${esc(gapV)}</span><input
+            class="gap-val"
+            id="${rid}i"
+            type="text"
+            value="${esc(gapV)}"
+            onblur="commitGap('${rid}',${qk})"
+            onkeydown="if(event.key==='Enter'||event.key==='Escape')this.blur()"
+          >nt]</span> <span class="z-atg">ATG</span>`;
+      })()
+    : '';
+
+  // Gene label (only first row of the strain; hidden if label is empty)
+  const geneHtml = isFirst
+    ? `<span class="gene-area">
+         <input class="gene-input" type="text" value="${esc(gene)}"
+                title="Gene label — click to edit"
+                oninput="setOv(${JSON.stringify(rowKey)},'gene',this.value);this.nextElementSibling.style.display=this.value.trim()?'inline':'none';"
+                onchange="setOv(${JSON.stringify(rowKey)},'gene',this.value);">
+         <span class="gene-arrow" style="display:${gene.trim()?'inline':'none'};">${arrow}</span>
+       </span>`
+    : '';
+
+  return `<div class="pub-row">
+    <span class="mm-label ${mmCls}">${esc(mmLabel)}</span>
+    <span>${seqHtml}${atgHtml}</span>
+    ${geneHtml}
+  </div>`;
+}
+
+function setOv(key,field,val){ if(!overrides[key])overrides[key]={}; overrides[key][field]=val; }
+
+// Gap click-to-edit helpers
+function activateGapEdit(rid, key) {
+  const disp = document.getElementById(rid+'d');
+  const inp  = document.getElementById(rid+'i');
+  if (!disp||!inp) return;
+  disp.style.display = 'none';
+  inp.style.display  = 'inline';
+  inp.focus(); inp.select();
+}
+function commitGap(rid, key) {
+  const disp = document.getElementById(rid+'d');
+  const inp  = document.getElementById(rid+'i');
+  if (!disp||!inp) return;
+  const val = inp.value.trim();
+  setOv(key,'gap',val);
+  disp.textContent   = val;
+  inp.style.display  = 'none';
+  disp.style.display = 'inline';
+}
+
+// ════════════════════════════════════════════════════════
+// BUILD STRAIN BLOCK
+// ════════════════════════════════════════════════════════
+function buildStrainBlock(group, gIdx) {
+  const motif    = getMotif();
+  const maxMM    = getMaxMM();
+  const upLen    = parseInt(document.getElementById('upLen').value)    || 10;
+  const midLen   = parseInt(document.getElementById('midLen').value)   || 5;
+  const dnLen    = parseInt(document.getElementById('dnLen').value)    || 10;
+  const showFull = document.getElementById('showFull').checked;
+  const geneDef  = document.getElementById('geneDefault').value.trim() || '[gene]';
+  const arrow    = group.strand==='+' ? '→' : '←';
+
+  const org = group.organism
+    .replace(/^Escherichia\b/,  '<em>Escherichia</em>')
+    .replace(/^Salmonella\b/,   '<em>Salmonella</em>')
+    .replace(/^Klebsiella\b/,   '<em>Klebsiella</em>')
+    .replace(/^Citrobacter\b/,  '<em>Citrobacter</em>')
+    .replace(/^Enterobacter\b/, '<em>Enterobacter</em>')
+    .replace(/^Serratia\b/,     '<em>Serratia</em>')
+    .replace(/^Cronobacter\b/,  '<em>Cronobacter</em>');
+
+  let rowsHtml = '';
+  let rowIdx   = 0;
+
+  group.entries.forEach((e, eIdx) => {
+    const hits = motif ? findAllHits(e.seq, motif, maxMM) : [];
+
+    if (!motif) {
+      // No motif typed → show entry as plain sequence
+      const key = `${gIdx}::${rowIdx++}`;
+      rowsHtml += buildRow(e, [], motif, upLen, midLen, dnLen, true, key, geneDef, arrow, eIdx===0);
+    } else if (!hits.length) {
+      // Has motif but no hits → show plain sequence (needed for "strains without hits" filter)
+      const sfilt = document.getElementById('showFilter').value;
+      if (sfilt === 'nohits') {
+        const key = `${gIdx}::${rowIdx++}`;
+        rowsHtml += buildRow(e, [], motif, upLen, midLen, dnLen, true, key, geneDef, arrow, eIdx===0);
+      }
+    } else {
+      // ONE ROW for this entry, all its hits shown on one line
+      const key = `${gIdx}::${rowIdx++}`;
+      rowsHtml += buildRow(e, hits, motif, upLen, midLen, dnLen, showFull, key, geneDef, arrow, eIdx===0 || rowIdx===1);
+    }
+  });
+
+  if (!rowsHtml) return '';
+
+  return `<div class="strain-block">
+  <div class="strain-title">
+    <span>${org}</span>
+    <span class="strand-badge">${group.strand}</span>
+    <span class="file-badge">${esc(group.filename)}</span>
+  </div>
+  ${rowsHtml}
+</div>`;
+}
+
+// ════════════════════════════════════════════════════════
+// GETTERS
+// ════════════════════════════════════════════════════════
+function getMotif(){
+  const raw = document.getElementById('motifInput').value.trim();
+  const caseSens = document.getElementById('caseSens').checked;
+  return caseSens ? raw : raw.toUpperCase();
+}
+function getMaxMM(){ return parseInt(document.getElementById('mmAllow').value)||0; }
+
+// ════════════════════════════════════════════════════════
+// PREVIEW
+// ════════════════════════════════════════════════════════
+function updatePreview(){
+  const motif=getMotif(), maxMM=getMaxMM();
+  const el=document.getElementById('motifPreview');
+  const meta=document.getElementById('motifMeta');
+  if (!motif){
+    el.innerHTML='<span style="color:#99a;font-size:11px;font-family:Arial,sans-serif;">Type a motif to search &amp; highlight</span>';
+    meta.textContent=''; return;
+  }
+  let html='';
+  for (const ch of motif) html+=ntSpan(ch,'');
+  el.innerHTML=html;
+  meta.textContent=`${motif.length} nt · ≤${maxMM} mismatches · multiple hits per sequence shown on one line with compressed [Xnt] gap`;
+}
+
+// ════════════════════════════════════════════════════════
+// RENDER
+// ════════════════════════════════════════════════════════
+function scheduleRender(){ clearTimeout(renderTimer); renderTimer=setTimeout(render,80); }
+
+function render(){
+  updatePreview();
+  if (!allEntries.length){
+    document.getElementById('figArea').innerHTML='<div class="empty"><b>No FASTA loaded</b>Upload one or more FASTA files above to begin.</div>';
+    document.getElementById('statsbar').style.display='none';
+    document.getElementById('pagebar').style.display='none';
+    return;
+  }
+  const motif=getMotif(), maxMM=getMaxMM();
+  const orgQ=document.getElementById('orgFilter').value.toLowerCase();
+  const sfilt=document.getElementById('showFilter').value;
+
+  visGroups=strainMap.filter(g=>{
+    if (orgQ&&!g.organism.toLowerCase().includes(orgQ)) return false;
+    if (sfilt==='hits')   return motif&&g.entries.some(e=>findAllHits(e.seq,motif,maxMM).length>0);
+    if (sfilt==='nohits') return motif&&g.entries.every(e=>findAllHits(e.seq,motif,maxMM).length===0);
+    if (sfilt==='exact')  return motif&&g.entries.some(e=>findAllHits(e.seq,motif,0).length>0);
+    return true;
+  });
+
+  let totalHits=0, exactHits=0, varHits=0;
+  visGroups.forEach(g=>g.entries.forEach(e=>{
+    (motif?findAllHits(e.seq,motif,maxMM):[]).forEach(h=>{
+      totalHits++; if(h.mm===0)exactHits++; else varHits++;
+    });
+  }));
+
+  document.getElementById('sSeqs').textContent   =allEntries.length;
+  document.getElementById('sStrains').textContent=strainMap.length;
+  document.getElementById('sVis').textContent    =visGroups.length;
+  document.getElementById('sHits').textContent   =totalHits;
+  document.getElementById('sExact').textContent  =exactHits;
+  document.getElementById('sVar').textContent    =varHits;
+  document.getElementById('statsbar').style.display='flex';
+
+  page=Math.min(page,Math.max(0,Math.ceil(visGroups.length/PER_PAGE)-1));
+  renderPage();
+}
+
+function renderPage(){
+  const s=page*PER_PAGE, end=Math.min(s+PER_PAGE,visGroups.length);
+  const parts=[];
+  visGroups.slice(s,end).forEach((g,i)=>{ const h=buildStrainBlock(g,s+i); if(h)parts.push(h); });
+  document.getElementById('figArea').innerHTML=
+    parts.join('<hr class="sdiv">')||'<div class="empty">No entries match the current filter.</div>';
+  const totalPg=Math.ceil(visGroups.length/PER_PAGE)||1;
+  document.getElementById('pbInfo').textContent=`Page ${page+1} of ${totalPg}  ·  strains ${s+1}–${end} of ${visGroups.length}`;
+  document.getElementById('pbPrev').disabled=page===0;
+  document.getElementById('pbNext').disabled=end>=visGroups.length;
+  document.getElementById('pagebar').style.display=visGroups.length>PER_PAGE?'flex':'none';
+}
+function changePage(d){
+  page=Math.max(0,Math.min(Math.ceil(visGroups.length/PER_PAGE)-1,page+d));
+  renderPage();
+}
+
+// ════════════════════════════════════════════════════════
+// EXPORT TSV
+// ════════════════════════════════════════════════════════
+function exportTSV(){
+  const motif=getMotif(),maxMM=getMaxMM(),geneDef=document.getElementById('geneDefault').value.trim()||'[gene]';
+  const upLen=parseInt(document.getElementById('upLen').value)||10;
+  const dnLen=parseInt(document.getElementById('dnLen').value)||10;
+  const rows=[['#','Organism','Strand','File','Header_MM','Num_hits','Hit_positions','Hit_sequences','Hit_MMs','Upstream','Downstream','Gap_to_ATG','Gene_label']];
+  let ri=0;
+  visGroups.forEach((g,gi)=>{
+    g.entries.forEach((e,ei)=>{
+      const hits=motif?findAllHits(e.seq,motif,maxMM):[];
+      const key=`${gi}::${ri}`;
+      const ov=overrides[key]||{};
+      const geneOut=ov.gene!==undefined?ov.gene:geneDef;
+      // Gap = nt from end of shown downstream to ATG (which starts at e.seq.length)
+      let autoGapOut = '0';
+      if (hits.length > 0) {
+        const lh    = hits[hits.length-1];
+        const lhEnd = lh.pos + lh.len;
+        autoGapOut  = String(Math.max(0, e.seq.length - (lhEnd + dnLen)));
+      } else {
+        autoGapOut = String(Math.max(0, e.seq.length - dnLen));
+      }
+      const gapOut = ov.gap !== undefined ? ov.gap : autoGapOut;
+      if (!hits.length){
+        rows.push([++ri,g.organism,g.strand,g.filename,e.mismatches??'',0,'','','',
+          e.seq.slice(0,upLen),'',gapOut,geneOut]);
+      } else {
+        rows.push([++ri,g.organism,g.strand,g.filename,e.mismatches??'',hits.length,
+          hits.map(h=>h.pos).join(';'),
+          hits.map(h=>h.matched).join(';'),
+          hits.map(h=>h.mm).join(';'),
+          e.seq.slice(Math.max(0,hits[0].pos-upLen),hits[0].pos),
+          e.seq.slice(hits[hits.length-1].pos+hits[hits.length-1].len,
+                      hits[hits.length-1].pos+hits[hits.length-1].len+dnLen),
+          gapOut,geneOut]);
+      }
+    });
+  });
+  const tsv=rows.map(r=>r.join('\t')).join('\n');
+  const blob=new Blob([tsv],{type:'text/tab-separated-values'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='fasta_motif_viewer.tsv'; a.click();
+}
+
+updatePreview();
+</script>
+</body>
+</html>
