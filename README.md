@@ -22,6 +22,13 @@ No installation required — runs entirely in your browser.
 - Export results as TSV for downstream analysis
 - Print/PDF export for publication-quality figures
 - Case-sensitive search option for soft-masked sequences
+  
+## Motivation
+Existing tools such as Jalview and BioEdit do not provide 
+a straightforward way to visualize regulatory motif hits 
+in upstream sequences with mismatch tolerance and 
+publication-quality output. FASTA Motif Viewer was built 
+to fill this gap.
 
 ## Usage
 1. Click the live link above
