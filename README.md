@@ -35,7 +35,7 @@ Plain FASTA format. Any standard FASTA header is accepted:
 
 ## Development Note
 The concept and design of this tool were developed by 
-Subaas Sritharan. The implementation was developed with 
+Sritharan Subaas. The implementation was developed with 
 the assistance of Claude (Anthropic) and ChatGPT (OpenAI) 
 based on the author's specifications.
 
